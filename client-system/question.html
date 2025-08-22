@@ -105,6 +105,60 @@
             padding: 2rem;
         }
 
+        .waiting-screen {
+            text-align: center;
+            max-width: 600px;
+            padding: 3rem;
+        }
+
+        .waiting-icon {
+            font-size: 4rem;
+            margin-bottom: 2rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .waiting-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-blue);
+        }
+
+        .waiting-message {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .status-indicator {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid var(--accent-blue);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .status-text {
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+
+        .refresh-btn {
+            background: var(--accent-blue);
+            color: var(--text-primary);
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: var(--border-radius);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .refresh-btn:hover {
+            background: var(--accent-green);
+            transform: translateY(-2px);
+        }
+
         .quiz-container {
             width: 100%;
             max-width: 600px;
@@ -330,7 +384,21 @@
     </header>
 
     <main class="main-content">
-        <div class="quiz-container fade-in">
+        <!-- Waiting Screen (shown until admin starts quiz) -->
+        <div class="waiting-screen" id="waitingScreen">
+            <div class="waiting-icon">⏳</div>
+            <h1 class="waiting-title">Please Wait</h1>
+            <p class="waiting-message">
+                The quiz has not started yet. Please wait for the administrator to begin the quiz session.
+            </p>
+            <div class="status-indicator">
+                <div class="status-text" id="statusText">Checking quiz status...</div>
+            </div>
+            <button class="refresh-btn" onclick="checkQuizStatus()">Refresh Status</button>
+        </div>
+
+        <!-- Quiz Container (shown only after admin starts quiz) -->
+        <div class="quiz-container fade-in" id="quizContainer" style="display: none;">
 
             <h2>Quiz Competition</h2>
             
@@ -365,8 +433,6 @@
                 </li>
             </ul>
 
-
-
             <div class="timer">
                 <span id="timer">5</span>
             </div>
@@ -387,6 +453,46 @@
 
         // Questions loaded from server via /api/quiz (or from login connect response)
         let questions = [];
+        let quizStarted = false;
+
+        // Function to check if quiz has started
+        async function checkQuizStatus() {
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    quizStarted = data.quizInProgress || false;
+                    
+                    if (quizStarted) {
+                        // Quiz has started, show quiz interface
+                        document.getElementById('waitingScreen').style.display = 'none';
+                        document.getElementById('quizContainer').style.display = 'block';
+                        document.getElementById('statusText').textContent = 'Quiz is now active!';
+                        
+                        // Initialize and start the quiz
+                        if (questions.length > 0) {
+                            displayQuestion();
+                        } else {
+                            await initializeQuestions();
+                            if (questions.length > 0) {
+                                displayQuestion();
+                            }
+                        }
+                    } else {
+                        // Quiz hasn't started yet
+                        document.getElementById('waitingScreen').style.display = 'block';
+                        document.getElementById('quizContainer').style.display = 'none';
+                        document.getElementById('statusText').textContent = 'Waiting for admin to start quiz...';
+                    }
+                } else {
+                    document.getElementById('statusText').textContent = 'Error checking quiz status';
+                }
+            } catch (error) {
+                document.getElementById('statusText').textContent = 'Connection error. Please try again.';
+                console.error('Error checking quiz status:', error);
+            }
+        }
+
         // Function to display current question
         function displayQuestion() {
             const currentQuestion = questions[currentQuestionIndex];
@@ -449,6 +555,13 @@
         function startTimer() {
             if (timerInterval) clearInterval(timerInterval);
             timerInterval = setInterval(() => {
+                // Check if quiz is still active
+                if (!quizStarted) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    return;
+                }
+
                 if (timeLeft > 0) {
                     timeLeft--;
                     timerElement.textContent = timeLeft;
@@ -471,6 +584,15 @@
         }
 
         function submitQuiz() {
+            // Check if quiz is still active
+            if (!quizStarted) {
+                console.log('Quiz was stopped by admin');
+                document.getElementById('waitingScreen').style.display = 'block';
+                document.getElementById('quizContainer').style.display = 'none';
+                document.getElementById('statusText').textContent = 'Quiz was stopped by admin. Please wait for it to start again.';
+                return;
+            }
+
             const selectedOption = document.querySelector('input[name="currentQuestion"]:checked');
             
             if (!selectedOption) {
@@ -503,6 +625,16 @@
         }
         
         function moveToNextQuestion() {
+            // Check if quiz is still active before proceeding
+            if (!quizStarted) {
+                console.log('Quiz was stopped by admin');
+                // Show waiting screen again
+                document.getElementById('waitingScreen').style.display = 'block';
+                document.getElementById('quizContainer').style.display = 'none';
+                document.getElementById('statusText').textContent = 'Quiz was stopped by admin. Please wait for it to start again.';
+                return;
+            }
+
             currentQuestionIndex++;
             
             if (currentQuestionIndex < questions.length) {
@@ -525,33 +657,48 @@
                     body: JSON.stringify(payload)
                 })
                 .then(async (res) => {
-                    if (!res.ok) throw new Error('submit failed');
+                    if (!res.ok) {
+                        const errorData = await res.json();
+                        if (errorData.error && errorData.error.includes('not started')) {
+                            // Quiz was stopped, show waiting screen
+                            document.getElementById('waitingScreen').style.display = 'block';
+                            document.getElementById('quizContainer').style.display = 'none';
+                            document.getElementById('statusText').textContent = 'Quiz was stopped. Please wait for admin to restart.';
+                            return;
+                        }
+                        throw new Error('submit failed');
+                    }
                     return res.json();
                 })
                 .then((data) => {
+                    if (!data) return; // Handle case where we returned early
+                    
                     const correct = Number(data && data.score) || 0;
                     const maxScore = Number(data && data.maxScore) || questions.length;
                     const accuracy = Number(data && data.percentage) || Math.round((correct / (maxScore || 1)) * 100);
                     const params = new URLSearchParams({
                         name: teamName,
                         correct: String(correct),
-                        total: String(questions.length),
+                        total: String(maxScore),
                         accuracy: String(accuracy)
                     });
                     window.location.href = `Result.html?${params.toString()}`;
                 })
                 .catch(() => {
                     // Fallback: compute locally if server submit fails
-                    const totalQuestions = questions.length;
                     let correctAnswers = 0;
+                    let totalPoints = 0;
                     questions.forEach((q, idx) => {
-                        if (typeof selections[idx] === 'number' && selections[idx] === q.correctAnswer) correctAnswers++;
+                        totalPoints += q.points || 1;
+                        if (typeof selections[idx] === 'number' && selections[idx] === q.correctAnswer) {
+                            correctAnswers += q.points || 1;
+                        }
                     });
-                    const accuracy = Math.round((correctAnswers / (totalQuestions || 1)) * 100);
+                    const accuracy = Math.round((correctAnswers / (totalPoints || 1)) * 100);
                     const params = new URLSearchParams({
                         name: teamName,
                         correct: String(correctAnswers),
-                        total: String(totalQuestions),
+                        total: String(totalPoints),
                         accuracy: String(accuracy)
                     });
                     window.location.href = `Result.html?${params.toString()}`;
@@ -595,7 +742,11 @@
         }
 
         window.onload = function() {
-            initializeQuestions().then((ok) => { if (ok) displayQuestion(); });
+            // First check if quiz has started
+            checkQuizStatus();
+            
+            // Set up periodic status checking every 3 seconds
+            setInterval(checkQuizStatus, 3000);
         };
     </script>
 </body>

@@ -235,9 +235,7 @@
                 <button class="btn danger" id="resetBtn" onclick="resetQuiz()" disabled>
                     ⏹️ Reset Quiz
                 </button>
-                <button class="btn" id="nextBtn" onclick="nextQuestion()" disabled>
-                    ⏭️ Next Question
-                </button>
+
                 <button class="btn" id="downloadBtn" onclick="downloadResults()" disabled>
                     📥 Download Results
                 </button>
@@ -438,42 +436,23 @@
             const startBtn = document.getElementById('startBtn');
             const resetBtn = document.getElementById('resetBtn');
             const downloadBtn = document.getElementById('downloadBtn');
-            const nextBtn = document.getElementById('nextBtn');
 
             if (quizInProgress) {
                 statusElement.textContent = 'Active';
                 statusElement.style.color = '#3fb950';
                 startBtn.disabled = true;
                 resetBtn.disabled = false;
-                nextBtn.disabled = false;
             } else {
                 statusElement.textContent = 'Inactive';
                 statusElement.style.color = '#9aa4b2';
                 // startBtn enabled state handled in updateStatus based on quizLoaded
                 resetBtn.disabled = false;
-                nextBtn.disabled = true;
             }
 
             downloadBtn.disabled = quizResults.length === 0;
         }
 
-        async function nextQuestion() {
-            setLoading(true);
-            try {
-                const response = await fetch('/api/quiz/next', { method: 'POST' });
-                if (response.ok) {
-                    showAlert('Moved to next question', 'success');
-                } else {
-                    const error = await response.json();
-                    showAlert(error.error || error.message || 'Failed to advance', 'error');
-                }
-                await loadInitialData();
-            } catch (e) {
-                showAlert('Failed to advance', 'error');
-            } finally {
-                setLoading(false);
-            }
-        }
+
 
         function updateClientCount(count) {
             document.getElementById('clientCount').textContent = count;

@@ -317,6 +317,9 @@ def client_connect():
 def submit_quiz():
     if not quiz_data or not quiz_data.get('questions'):
         return jsonify({'error': 'No quiz loaded'}), 400
+    
+    if not quiz_in_progress:
+        return jsonify({'error': 'Quiz has not started yet. Please wait for admin approval.'}), 400
 
     data = request.get_json()
     client_id = data.get('clientId')

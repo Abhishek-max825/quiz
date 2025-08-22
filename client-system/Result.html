@@ -238,15 +238,15 @@
         <div class="stats-grid">
             <div class="stat-box">
                 <div class="stat-number" id="correctCount">17</div>
-                <div class="stat-label">CORRECT</div>
+                <div class="stat-label">POINTS</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="incorrectCount">3</div>
-                <div class="stat-label">INCORRECT</div>
+                <div class="stat-label">WRONG</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="totalCount">20</div>
-                <div class="stat-label">TOTAL</div>
+                <div class="stat-label">QUESTIONS</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="accuracyPercent">85%</div>
@@ -307,13 +307,18 @@
            
 
             // Update summary
+            const correctQuestions = Math.round(quizData.correctAnswers / 5); // Assuming 5 points per question
+            const totalQuestions = Math.round(quizData.totalQuestions / 5);
             document.getElementById('resultSummary').textContent = 
-                `You answered ${quizData.correctAnswers} out of ${quizData.totalQuestions} questions correctly.`;
+                `You scored ${quizData.correctAnswers} out of ${quizData.totalQuestions} points (${correctQuestions} out of ${totalQuestions} questions correct).`;
 
             // Update statistics
             document.getElementById('correctCount').textContent = quizData.correctAnswers;
-            document.getElementById('incorrectCount').textContent = quizData.totalQuestions - quizData.correctAnswers;
-            document.getElementById('totalCount').textContent = quizData.totalQuestions;
+            const totalQuestions = Math.round(quizData.totalQuestions / 5); // Assuming 5 points per question
+            const correctQuestions = Math.round(quizData.correctAnswers / 5);
+            const incorrectQuestions = Math.max(0, totalQuestions - correctQuestions);
+            document.getElementById('incorrectCount').textContent = incorrectQuestions;
+            document.getElementById('totalCount').textContent = totalQuestions;
             document.getElementById('accuracyPercent').textContent = `${quizData.accuracy}%`;
         }
 
