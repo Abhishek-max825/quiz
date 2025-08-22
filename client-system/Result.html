@@ -268,13 +268,27 @@
             const providedAccuracy = p.get('accuracy') ?? p.get('score');
             let accuracy = providedAccuracy != null ? Number(providedAccuracy) : NaN;
 
-            let resolvedCorrect = isFinite(correct) ? correct : 17;
+            // If no correct answers provided, default to 0 (not 17!)
+            let resolvedCorrect = isFinite(correct) ? correct : 0;
             let resolvedTotal = isFinite(total) && total > 0 ? total : 20;
+            
+            // If no accuracy provided, calculate it properly
             if (!isFinite(accuracy)) {
-                accuracy = Math.round((resolvedCorrect / resolvedTotal) * 100);
+                accuracy = resolvedTotal > 0 ? Math.round((resolvedCorrect / resolvedTotal) * 100) : 0;
             }
 
+            // Ensure accuracy is between 0 and 100
             accuracy = Math.max(0, Math.min(100, accuracy));
+
+            console.log('URL Parameters:', {
+                name: p.get('name'),
+                correct: p.get('correct'),
+                total: p.get('total'),
+                accuracy: p.get('accuracy'),
+                resolvedCorrect,
+                resolvedTotal,
+                finalAccuracy: accuracy
+            });
 
             return {
                 userName: name,
@@ -307,10 +321,15 @@
            
 
             // Update summary
-            const correctQuestions = Math.round(quizData.correctAnswers / 5); // Assuming 5 points per question
-            const totalQuestions = Math.round(quizData.totalQuestions / 5);
-            document.getElementById('resultSummary').textContent = 
-                `You scored ${quizData.correctAnswers} out of ${quizData.totalQuestions} points (${correctQuestions} out of ${totalQuestions} questions correct).`;
+            if (quizData.correctAnswers === 0) {
+                document.getElementById('resultSummary').textContent = 
+                    `You did not answer any questions. Score: 0 out of ${quizData.totalQuestions} points.`;
+            } else {
+                const correctQuestions = Math.round(quizData.correctAnswers / 5); // Assuming 5 points per question
+                const totalQuestions = Math.round(quizData.totalQuestions / 5);
+                document.getElementById('resultSummary').textContent = 
+                    `You scored ${quizData.correctAnswers} out of ${quizData.totalQuestions} points (${correctQuestions} out of ${totalQuestions} questions correct).`;
+            }
 
             // Update statistics
             document.getElementById('correctCount').textContent = quizData.correctAnswers;
@@ -320,6 +339,16 @@
             document.getElementById('incorrectCount').textContent = incorrectQuestions;
             document.getElementById('totalCount').textContent = totalQuestions;
             document.getElementById('accuracyPercent').textContent = `${quizData.accuracy}%`;
+            
+            // Log the final values for debugging
+            console.log('Final Quiz Data:', {
+                correctAnswers: quizData.correctAnswers,
+                totalQuestions: quizData.totalQuestions,
+                accuracy: quizData.accuracy,
+                correctQuestions,
+                incorrectQuestions,
+                totalQuestions
+            });
         }
 
         function takeQuizAgain() {

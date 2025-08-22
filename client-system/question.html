@@ -444,12 +444,8 @@
         let currentQuestionIndex = 0;
         let timerInterval = null; // active countdown interval
         let advanceInProgress = false; // guard to prevent double-advance
-        const timerElement = document.getElementById("timer");
-        const questionText = document.getElementById("questionText");
-        const optionTextA = document.getElementById("optionTextA");
-        const optionTextB = document.getElementById("optionTextB");
-        const optionTextC = document.getElementById("optionTextC");
-        const optionTextD = document.getElementById("optionTextD");
+        let quizInitialized = false; // track if quiz has been initialized
+        let timerElement, questionText, optionTextA, optionTextB, optionTextC, optionTextD;
 
         // Questions loaded from server via /api/quiz (or from login connect response)
         let questions = [];
@@ -467,16 +463,26 @@
                         // Quiz has started, show quiz interface
                         document.getElementById('waitingScreen').style.display = 'none';
                         document.getElementById('quizContainer').style.display = 'block';
-                        document.getElementById('statusText').textContent = 'Quiz is now active!';
                         
-                        // Initialize and start the quiz
-                        if (questions.length > 0) {
+                        // Only initialize quiz if it hasn't been started yet
+                        if (!quizInitialized && questions.length > 0) {
+                            console.log('Initializing quiz for first time');
+                            // Reset quiz state for new session
+                            resetQuizState();
                             displayQuestion();
-                        } else {
+                            quizInitialized = true;
+                        } else if (questions.length === 0) {
+                            // Only load questions if we don't have them yet
                             await initializeQuestions();
-                            if (questions.length > 0) {
+                            if (questions.length > 0 && !quizInitialized) {
+                                console.log('Questions loaded, initializing quiz');
+                                // Reset quiz state for new session
+                                resetQuizState();
                                 displayQuestion();
+                                quizInitialized = true;
                             }
+                        } else {
+                            console.log('Quiz already running, not restarting');
                         }
                     } else {
                         // Quiz hasn't started yet
@@ -495,6 +501,39 @@
 
         // Function to display current question
         function displayQuestion() {
+            console.log('displayQuestion called for question index:', currentQuestionIndex);
+            
+            // Initialize DOM elements if not already done
+            if (!timerElement) {
+                timerElement = document.getElementById("timer");
+                questionText = document.getElementById("questionText");
+                optionTextA = document.getElementById("optionTextA");
+                optionTextB = document.getElementById("optionTextB");
+                optionTextC = document.getElementById("optionTextC");
+                optionTextD = document.getElementById("optionTextD");
+                
+                // Debug logging
+                console.log('DOM elements initialized:', {
+                    timerElement: !!timerElement,
+                    questionText: !!questionText,
+                    currentQuestionIndex,
+                    questionsLength: questions.length
+                });
+                
+                // Additional timer element debugging
+                if (timerElement) {
+                    console.log('Timer element found:', timerElement.id, 'Current text:', timerElement.textContent);
+                } else {
+                    console.error('Timer element NOT found!');
+                }
+            }
+            
+            // Ensure timer element is available
+            if (!timerElement) {
+                console.error('Timer element not found!');
+                return;
+            }
+            
             const currentQuestion = questions[currentQuestionIndex];
             
             // Update question text
@@ -528,16 +567,23 @@
                 label.classList.remove('glow');
             }
             
-            // Reset timer
+            // Reset timer and advanceInProgress flag
             timeLeft = 5;
-            timerElement.textContent = timeLeft;
+            advanceInProgress = false;
+            
+            // Update timer display
+            if (timerElement) {
+                timerElement.textContent = timeLeft;
+                timerElement.style.animation = "pulse 2s ease-in-out infinite";
+                console.log('Timer reset to:', timeLeft, 'for question:', currentQuestionIndex + 1);
+            }
             
             // Start timer for this question
             startTimer();
         }
         
         // Add micro-interactions to options and auto-submit
-        const selections = [];
+        let selections = [];
 
         document.querySelectorAll('.option-label').forEach(label => {
             label.addEventListener('click', function() {
@@ -553,7 +599,22 @@
         });
 
         function startTimer() {
-            if (timerInterval) clearInterval(timerInterval);
+            // Prevent multiple timers from running
+            if (timerInterval) {
+                console.log('Timer already running, clearing existing timer');
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            // Ensure we have a valid timer element
+            if (!timerElement) {
+                console.error('Cannot start timer: timer element not found');
+                return;
+            }
+            
+            console.log('Starting timer for question', currentQuestionIndex + 1, 'Time left:', timeLeft);
+            console.log('Timer element before starting:', timerElement.textContent);
+            
             timerInterval = setInterval(() => {
                 // Check if quiz is still active
                 if (!quizStarted) {
@@ -564,20 +625,35 @@
 
                 if (timeLeft > 0) {
                     timeLeft--;
-                    timerElement.textContent = timeLeft;
-                    // Add pulse animation when time is running low
-                    if (timeLeft <= 3) {
-                        timerElement.style.animation = "pulse 0.5s ease-in-out infinite";
+                    if (timerElement) {
+                        timerElement.textContent = timeLeft;
+                        console.log('Timer display updated to:', timeLeft, 'for question:', currentQuestionIndex + 1);
+                        // Add pulse animation when time is running low
+                        if (timeLeft <= 3) {
+                            timerElement.style.animation = "pulse 0.5s ease-in-out infinite";
+                        }
                     }
+                    console.log('Timer tick:', timeLeft, 'for question:', currentQuestionIndex + 1);
                 } else {
+                    // Time's up! Clear timer and move to next question
+                    console.log('Time up! Moving to next question');
                     clearInterval(timerInterval);
                     timerInterval = null;
-                    if (advanceInProgress) return;
-                    advanceInProgress = true;
-                    // If unanswered, record as unanswered (null)
-                    if (selections[currentQuestionIndex] === undefined) {
-                        selections[currentQuestionIndex] = null;
+                    
+                    if (advanceInProgress) {
+                        console.log('Advance already in progress, skipping');
+                        return;
                     }
+                    advanceInProgress = true;
+                    
+                    // If unanswered, record as unanswered (undefined means not answered)
+                    if (selections[currentQuestionIndex] === undefined) {
+                        // Don't set to null, keep it undefined to indicate no answer
+                        console.log('Question', currentQuestionIndex + 1, 'was unanswered (time ran out)');
+                    }
+                    
+                    console.log('Calling moveToNextQuestion from timer');
+                    // Move to next question immediately
                     moveToNextQuestion();
                 }
             }, 1000);
@@ -620,11 +696,15 @@
                 timerInterval = null;
             }
 
-            // Immediately advance
-            moveToNextQuestion();
+            // Add a small delay before advancing to show the selection
+            setTimeout(() => {
+                moveToNextQuestion();
+            }, 1500);
         }
         
         function moveToNextQuestion() {
+            console.log('moveToNextQuestion called, currentQuestionIndex:', currentQuestionIndex, 'questions.length:', questions.length);
+            
             // Check if quiz is still active before proceeding
             if (!quizStarted) {
                 console.log('Quiz was stopped by admin');
@@ -635,22 +715,42 @@
                 return;
             }
 
+            // Clear any existing timer first
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
             currentQuestionIndex++;
+            console.log('Advanced to question index:', currentQuestionIndex);
             
             if (currentQuestionIndex < questions.length) {
                 // Move to next question
                 advanceInProgress = false;
-                // reset timer animation visual
-                timerElement.style.animation = "pulse 2s ease-in-out infinite";
+                console.log('Displaying next question');
+                
+                // Display the next question
                 displayQuestion();
             } else {
                 // Quiz completed: compute score, store attempt, redirect to results
                 const clientId = localStorage.getItem('clientId');
                 const teamName = (localStorage.getItem('teamName') || 'Player').trim();
+                
+                // Log the selections array for debugging
+                console.log('Quiz completed. Selections array:', selections);
+                console.log('Questions array length:', questions.length);
+                
+                // Calculate local score first for verification
+                const localScore = calculateLocalScore();
+                console.log('Local score calculation:', localScore);
+                
                 const payload = {
                     clientId,
                     answers: selections
                 };
+                
+                console.log('Sending payload to server:', payload);
+                
                 fetch('/api/client/submit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -670,42 +770,146 @@
                     }
                     return res.json();
                 })
-                .then((data) => {
-                    if (!data) return; // Handle case where we returned early
-                    
-                    const correct = Number(data && data.score) || 0;
-                    const maxScore = Number(data && data.maxScore) || questions.length;
-                    const accuracy = Number(data && data.percentage) || Math.round((correct / (maxScore || 1)) * 100);
-                    const params = new URLSearchParams({
-                        name: teamName,
-                        correct: String(correct),
-                        total: String(maxScore),
-                        accuracy: String(accuracy)
-                    });
-                    window.location.href = `Result.html?${params.toString()}`;
-                })
+                                 .then((data) => {
+                     if (!data) return; // Handle case where we returned early
+                     
+                     // ALWAYS use local calculation for accuracy and score
+                     // Server data might be incorrect, so we rely on our own logic
+                     const localScore = calculateLocalScore();
+                     console.log('Local score calculation (always used):', localScore);
+                     
+                     // Log server data for debugging
+                     console.log('Server response data:', data);
+                     console.log('Selections array:', selections);
+                     
+                     // Use local calculation results
+                     const params = new URLSearchParams({
+                         name: teamName,
+                         correct: String(localScore.correctAnswers),
+                         total: String(localScore.totalPoints),
+                         accuracy: String(localScore.accuracy)
+                     });
+                     
+                     console.log('Redirecting to results with params:', params.toString());
+                     window.location.href = `Result.html?${params.toString()}`;
+                 })
                 .catch(() => {
                     // Fallback: compute locally if server submit fails
-                    let correctAnswers = 0;
-                    let totalPoints = 0;
-                    questions.forEach((q, idx) => {
-                        totalPoints += q.points || 1;
-                        if (typeof selections[idx] === 'number' && selections[idx] === q.correctAnswer) {
-                            correctAnswers += q.points || 1;
-                        }
-                    });
-                    const accuracy = Math.round((correctAnswers / (totalPoints || 1)) * 100);
+                    const localScore = calculateLocalScore();
+                    
+                    console.log('Fallback local score calculation:', localScore);
+                    
                     const params = new URLSearchParams({
                         name: teamName,
-                        correct: String(correctAnswers),
-                        total: String(totalPoints),
-                        accuracy: String(accuracy)
+                        correct: String(localScore.correctAnswers),
+                        total: String(localScore.totalPoints),
+                        accuracy: String(localScore.accuracy)
                     });
                     window.location.href = `Result.html?${params.toString()}`;
                 });
             }
         }
 
+        function validateSelectionsArray() {
+            console.log('Validating selections array...');
+            
+            // Ensure selections array has the right length
+            if (selections.length !== questions.length) {
+                console.log('Selections array length mismatch. Expected:', questions.length, 'Got:', selections.length);
+                // Resize array to match questions length
+                while (selections.length < questions.length) {
+                    selections.push(undefined);
+                }
+                while (selections.length > questions.length) {
+                    selections.pop();
+                }
+                console.log('Fixed selections array length to:', selections.length);
+            }
+            
+            // Only clear elements that are invalid, keep valid answers
+            for (let i = 0; i < selections.length; i++) {
+                if (selections[i] !== undefined && selections[i] !== null && typeof selections[i] !== 'number') {
+                    console.log(`Question ${i + 1}: Invalid selection ${selections[i]}, setting to undefined`);
+                    selections[i] = undefined;
+                } else if (selections[i] === undefined) {
+                    console.log(`Question ${i + 1}: Already undefined (unanswered)`);
+                } else {
+                    console.log(`Question ${i + 1}: Valid answer ${selections[i]}, keeping it`);
+                }
+            }
+            
+            console.log('Validated selections array:', selections);
+        }
+        
+        function calculateLocalScore() {
+            // Validate selections array first
+            validateSelectionsArray();
+            
+            let correctAnswers = 0;
+            let totalPoints = 0;
+            let answeredQuestions = 0;
+            
+            console.log('Calculating local score with selections:', selections);
+            console.log('Questions length:', questions.length);
+            
+            questions.forEach((q, idx) => {
+                totalPoints += q.points || 1;
+                
+                // Check if this question was answered
+                if (selections[idx] !== undefined && selections[idx] !== null) {
+                    answeredQuestions++;
+                    console.log(`Question ${idx + 1}: Answered with ${selections[idx]}, correct answer is ${q.correctAnswer}`);
+                    // Check if the answer is correct
+                    if (typeof selections[idx] === 'number' && selections[idx] === q.correctAnswer) {
+                        correctAnswers += q.points || 1;
+                        console.log(`Question ${idx + 1}: CORRECT!`);
+                    } else {
+                        console.log(`Question ${idx + 1}: WRONG!`);
+                    }
+                } else {
+                    console.log(`Question ${idx + 1}: Not answered`);
+                }
+            });
+            
+            const accuracy = answeredQuestions > 0 ? Math.round((correctAnswers / totalPoints) * 100) : 0;
+            
+            const result = {
+                correctAnswers,
+                totalPoints,
+                answeredQuestions,
+                totalQuestions: questions.length,
+                accuracy
+            };
+            
+            console.log('Local score result:', result);
+            return result;
+        }
+        
+        function resetQuizState() {
+            // Clear any existing timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            // Reset quiz variables
+            currentQuestionIndex = 0;
+            selections = []; // Reset selections array completely
+            timeLeft = 5;
+            advanceInProgress = false;
+            quizInitialized = false;
+            
+            // Initialize selections array with undefined for all questions
+            if (questions.length > 0) {
+                for (let i = 0; i < questions.length; i++) {
+                    selections[i] = undefined;
+                }
+                console.log('Initialized selections array with', questions.length, 'undefined values');
+            }
+            
+            console.log('Quiz state reset');
+        }
+        
         function showLoadError(message) {
             questionText.textContent = message || 'Failed to load questions. Please try again later.';
         }
@@ -747,6 +951,20 @@
             
             // Set up periodic status checking every 3 seconds
             setInterval(checkQuizStatus, 3000);
+            
+            // Add test function for debugging (remove in production)
+            window.testScoreCalculation = function() {
+                console.log('Testing score calculation...');
+                const score = calculateLocalScore();
+                console.log('Test score result:', score);
+                alert(`Test Score: ${score.correctAnswers}/${score.totalPoints} (${score.accuracy}%) - Answered: ${score.answeredQuestions}/${score.totalQuestions}`);
+            };
+            
+            // Debug function to show current selections
+            window.showSelections = function() {
+                console.log('Current selections:', selections);
+                alert(`Selections: ${JSON.stringify(selections)}`);
+            };
         };
     </script>
 </body>
