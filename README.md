@@ -1,4 +1,4 @@
-# 🎯 Quiz Admin Panel
+# 🎯 PROJECT QUIZ
 
 A modern, real-time quiz administration system built with Python Flask and vanilla JavaScript. Perfect for conducting online quizzes, tests, and assessments with multiple clients.
 
