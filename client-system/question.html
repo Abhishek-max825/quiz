@@ -344,6 +344,24 @@
             .timer span {
                 font-size: 1.2rem;
             }
+
+            /* Countdown overlay mobile styles */
+            .countdown-overlay {
+                width: 300px;
+                height: 250px;
+            }
+
+            .countdown-number {
+                font-size: 4rem;
+            }
+
+            .countdown-text {
+                font-size: 1.2rem;
+            }
+
+            .countdown-message {
+                font-size: 1rem;
+            }
         }
 
         /* Animation classes */
@@ -374,6 +392,78 @@
             from { box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
             to { box-shadow: 0 0 30px rgba(0, 255, 136, 0.6); }
         }
+
+        /* Countdown overlay styles */
+        .countdown-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 280px;
+            height: 280px;
+            background: rgba(26, 26, 26, 0.95);
+            border: 2px solid var(--accent-blue);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        .countdown-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .countdown-content {
+            text-align: center;
+            color: var(--text-primary);
+            width: 100%;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .countdown-number {
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.8);
+            animation: countdownPulse 1s ease-in-out;
+            margin-bottom: 0.5rem;
+            line-height: 1;
+        }
+
+        .countdown-text {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .countdown-message {
+            font-size: 1rem;
+            color: var(--accent-green);
+            opacity: 0;
+            animation: fadeInUp 0.5s ease-in-out 0.5s forwards;
+        }
+
+        @keyframes countdownPulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -382,6 +472,15 @@
             <div class="logo">QuizMaster</div>
         </nav>
     </header>
+
+    <!-- Countdown Overlay -->
+    <div class="countdown-overlay" id="countdownOverlay">
+        <div class="countdown-content">
+            <div class="countdown-number" id="countdownNumber">5</div>
+            <div class="countdown-text">Quiz starts in</div>
+            <div class="countdown-message">Get ready!</div>
+        </div>
+    </div>
 
     <main class="main-content">
         <!-- Waiting Screen (shown until admin starts quiz) -->
@@ -445,6 +544,8 @@
         let timerInterval = null; // active countdown interval
         let advanceInProgress = false; // guard to prevent double-advance
         let quizInitialized = false; // track if quiz has been initialized
+        let countdownShown = false; // track if countdown has been shown
+        let countdownActive = false; // true while countdown overlay is visible
         let timerElement, questionText, optionTextA, optionTextB, optionTextC, optionTextD;
 
         // Questions loaded from server via /api/quiz (or from login connect response)
@@ -457,32 +558,43 @@
                 const response = await fetch('/api/status');
                 if (response.ok) {
                     const data = await response.json();
+                    const wasQuizStarted = quizStarted;
                     quizStarted = data.quizInProgress || false;
                     
+                    if (quizStarted && !wasQuizStarted && !countdownShown) {
+                        countdownShown = true;
+                        countdownActive = true;
+                        // During countdown, hide waiting and quiz; show overlay via showQuizCountdown
+                        document.getElementById('waitingScreen').style.display = 'none';
+                        document.getElementById('quizContainer').style.display = 'none';
+                        showQuizCountdown();
+                        return;
+                    }
+
+                    // If countdown is active, do not transition screens via polling; keep both hidden
+                    if (countdownActive) {
+                        document.getElementById('waitingScreen').style.display = 'none';
+                        document.getElementById('quizContainer').style.display = 'none';
+                        return;
+                    }
+
                     if (quizStarted) {
-                        // Quiz has started, show quiz interface
+                        // Quiz has started (and no countdown running), show quiz interface
                         document.getElementById('waitingScreen').style.display = 'none';
                         document.getElementById('quizContainer').style.display = 'block';
                         
                         // Only initialize quiz if it hasn't been started yet
                         if (!quizInitialized && questions.length > 0) {
-                            console.log('Initializing quiz for first time');
-                            // Reset quiz state for new session
                             resetQuizState();
                             displayQuestion();
                             quizInitialized = true;
                         } else if (questions.length === 0) {
-                            // Only load questions if we don't have them yet
                             await initializeQuestions();
                             if (questions.length > 0 && !quizInitialized) {
-                                console.log('Questions loaded, initializing quiz');
-                                // Reset quiz state for new session
                                 resetQuizState();
                                 displayQuestion();
                                 quizInitialized = true;
                             }
-                        } else {
-                            console.log('Quiz already running, not restarting');
                         }
                     } else {
                         // Quiz hasn't started yet
@@ -499,9 +611,63 @@
             }
         }
 
+        // Function to show quiz countdown
+        function showQuizCountdown() {
+            const countdownOverlay = document.getElementById('countdownOverlay');
+            const countdownNumber = document.getElementById('countdownNumber');
+            const waiting = document.getElementById('waitingScreen');
+            const quizContainer = document.getElementById('quizContainer');
+            
+            // Hide waiting during countdown and show overlay
+            waiting.style.display = 'none';
+            quizContainer.style.display = 'none';
+            countdownOverlay.classList.add('active');
+            countdownActive = true;
+            
+            let countdown = 5;
+            countdownNumber.textContent = countdown;
+            
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                if (countdown >= 0) {
+                    countdownNumber.textContent = countdown;
+                }
+                if (countdown < 0) {
+                    clearInterval(countdownInterval);
+                    
+                    // Hide overlay and show quiz with fade-in
+                    countdownOverlay.classList.remove('active');
+                    countdownActive = false;
+                    quizContainer.style.display = 'block';
+                    quizContainer.classList.add('fade-in');
+                    setTimeout(() => quizContainer.classList.remove('fade-in'), 500);
+                    
+                    if (!quizInitialized && questions.length > 0) {
+                        resetQuizState();
+                        displayQuestion();
+                        quizInitialized = true;
+                    } else if (questions.length === 0) {
+                        initializeQuestions().then(() => {
+                            if (questions.length > 0 && !quizInitialized) {
+                                resetQuizState();
+                                displayQuestion();
+                                quizInitialized = true;
+                            }
+                        });
+                    }
+                }
+            }, 1000);
+        }
+
         // Function to display current question
         function displayQuestion() {
             console.log('displayQuestion called for question index:', currentQuestionIndex);
+            
+            // Always enforce view: hide waiting, show quiz
+            const waitingEl = document.getElementById('waitingScreen');
+            const quizEl = document.getElementById('quizContainer');
+            if (waitingEl) waitingEl.style.display = 'none';
+            if (quizEl && quizEl.style.display !== 'block') quizEl.style.display = 'block';
             
             // Initialize DOM elements if not already done
             if (!timerElement) {
@@ -898,6 +1064,7 @@
             timeLeft = 5;
             advanceInProgress = false;
             quizInitialized = false;
+            countdownShown = false; // Reset countdown flag
             
             // Initialize selections array with undefined for all questions
             if (questions.length > 0) {
