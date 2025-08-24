@@ -550,6 +550,7 @@
         let quizStartAtIso = null; // server ISO start time
         let quizStartAtMsLocal = null; // local start timestamp fallback
         let timerElement, questionText, optionTextA, optionTextB, optionTextC, optionTextD;
+        let questionStartMs = null; // timestamp when current question is shown
 
         // Questions loaded from server via /api/quiz (or from login connect response)
         let questions = [];
@@ -768,6 +769,8 @@
             // Start timing for this question
             questionStartTime = Date.now();
             
+            // Mark start time and start countdown for this question
+            try { questionStartMs = Date.now(); } catch (e) { questionStartMs = null; }
             // Start timer for this question
             startTimer();
         }
@@ -841,18 +844,8 @@
                         // Don't set to null, keep it undefined to indicate no answer
                         console.log('Question', currentQuestionIndex + 1, 'was unanswered (time ran out)');
                     }
-                    
-                    // Record actual time spent on this question (not fixed 5 seconds)
-                    if (questionStartTime) {
-                        const questionTime = Math.floor((Date.now() - questionStartTime) / 1000);
-                        totalQuestionTime += questionTime;
-                        try { 
-                            questionTimes[currentQuestionIndex] = questionTime; 
-                        } catch (e) {
-                            questionTimes[currentQuestionIndex] = questionTime;
-                        }
-                        console.log(`Question ${currentQuestionIndex + 1} took ${questionTime} seconds (time ran out). Total question time: ${totalQuestionTime}`);
-                    }
+                    // Time ran out → fixed per-question duration
+                    try { questionTimes[currentQuestionIndex] = QUESTION_SECONDS; } catch (e) {}
                     
                     console.log('Calling moveToNextQuestion from timer');
                     // Move to next question immediately
@@ -891,18 +884,10 @@
 
             // Record selection for this question as index (number string)
             selections[currentQuestionIndex] = Number(selectedOption.value);
-            
-            // Calculate and record actual time spent on this question
-            if (questionStartTime) {
-                const questionTime = Math.floor((Date.now() - questionStartTime) / 1000);
-                totalQuestionTime += questionTime;
-                try {
-                    questionTimes[currentQuestionIndex] = questionTime;
-                } catch (e) {
-                    questionTimes[currentQuestionIndex] = questionTime;
-                }
-                console.log(`Question ${currentQuestionIndex + 1} took ${questionTime} seconds. Total question time: ${totalQuestionTime}`);
-            }
+            // Record fixed time per question (always 5 seconds)
+            try {
+                questionTimes[currentQuestionIndex] = QUESTION_SECONDS;
+            } catch (e) {}
 
             // Stop countdown to prevent double-advance
             if (timerInterval) {
@@ -964,12 +949,9 @@
                     timeTaken: totalQuestionTime, // Use only question-solving time
                     questionTimes: (function(){
                         try {
-                            // Use actual time spent on each question, not fixed 5 seconds
-                            return questionTimes.map(time => time || 0);
-                        } catch (e) { 
-                            // Fallback to fixed time if questionTimes array is corrupted
+                            // Always 5 seconds per question
                             return Array.from({ length: questions.length }, () => QUESTION_SECONDS);
-                        }
+                        } catch (e) { return undefined; }
                     })()
                 };
                 
@@ -1007,14 +989,21 @@
                      console.log('Selections array:', selections);
                      
                      // Use local calculation results
-                     let totalSeconds = 0;
-                     try { totalSeconds = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS; } catch(e) {}
+                     // Prefer measured per-question total over server time
+                    let measuredTotal = 0;
+                    try {
+                        measuredTotal = Array.isArray(questionTimes)
+                          ? questionTimes.reduce((a, b) => a + (Number.isFinite(b) ? b : QUESTION_SECONDS), 0)
+                          : 0;
+                    } catch (e) { measuredTotal = 0; }
+                     const serverTotal = Number(data && data.timeTaken);
+                     const totalSeconds = measuredTotal > 0 ? measuredTotal : (Number.isFinite(serverTotal) ? serverTotal : (function(){ try { const startMs = quizStartAtMsLocal || Date.now(); return Math.max(0, Math.floor((Date.now()-startMs)/1000)); } catch(e){ return 0; } })());
                      const params = new URLSearchParams({
                          name: teamName,
                          correct: String(localScore.correctAnswers),
                          total: String(localScore.totalPoints),
                          accuracy: String(localScore.accuracy),
-                         time: String((data && Number.isFinite(Number(data.timeTaken))) ? Number(data.timeTaken) : (totalSeconds || (function(){ try { const startMs = quizStartAtMsLocal || Date.now(); return Math.max(0, Math.floor((Date.now()-startMs)/1000)); } catch(e){ return 0; } })()))
+                         time: String(totalSeconds)
                      });
                      
                      console.log('Redirecting to results with params:', params.toString());
@@ -1023,7 +1012,10 @@
                 .catch(() => {
                     // Fallback: compute locally if server submit fails
                     const localScore = calculateLocalScore();
-                    let localTime = totalQuestionTime; // Use actual question-solving time
+                    let localTime = 0;
+                    try {
+                        localTime = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS;
+                    } catch(e) { localTime = 0; }
                     
                     console.log('Fallback local score calculation:', localScore);
                     
