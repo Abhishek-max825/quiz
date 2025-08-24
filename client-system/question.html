@@ -550,6 +550,7 @@
         let quizStartAtIso = null; // server ISO start time
         let quizStartAtMsLocal = null; // local start timestamp fallback
         let timerElement, questionText, optionTextA, optionTextB, optionTextC, optionTextD;
+        let questionStartMs = null; // timestamp when current question is shown
 
         // Questions loaded from server via /api/quiz (or from login connect response)
         let questions = [];
@@ -760,6 +761,8 @@
                 console.log('Timer reset to:', timeLeft, 'for question:', currentQuestionIndex + 1);
             }
             
+            // Mark start time and start countdown for this question
+            try { questionStartMs = Date.now(); } catch (e) { questionStartMs = null; }
             // Start timer for this question
             startTimer();
         }
@@ -834,7 +837,7 @@
                         // Don't set to null, keep it undefined to indicate no answer
                         console.log('Question', currentQuestionIndex + 1, 'was unanswered (time ran out)');
                     }
-                    // Time ran out → fixed per-question duration
+                    // Time ran out → spent full question duration
                     try { questionTimes[currentQuestionIndex] = QUESTION_SECONDS; } catch (e) {}
                     
                     console.log('Calling moveToNextQuestion from timer');
@@ -874,9 +877,13 @@
 
             // Record selection for this question as index (number string)
             selections[currentQuestionIndex] = Number(selectedOption.value);
-            // Record fixed time per question (always 5 seconds)
+            // Record actual time spent (ceil of elapsed seconds, at least 1, at most QUESTION_SECONDS)
             try {
-                questionTimes[currentQuestionIndex] = QUESTION_SECONDS;
+                const nowMs = Date.now();
+                const elapsedMs = questionStartMs ? (nowMs - questionStartMs) : ((QUESTION_SECONDS - timeLeft) * 1000);
+                const elapsedSecCeil = Math.ceil(elapsedMs / 1000);
+                const spent = Math.max(1, Math.min(QUESTION_SECONDS, elapsedSecCeil));
+                questionTimes[currentQuestionIndex] = spent;
             } catch (e) {}
 
             // Stop countdown to prevent double-advance
@@ -944,8 +951,13 @@
                     })(),
                     questionTimes: (function(){
                         try {
-                            // Always 5 seconds per question
-                            return Array.from({ length: questions.length }, () => QUESTION_SECONDS);
+                            // Use measured times array; fill unanswered with full duration
+                            const times = [];
+                            for (let i = 0; i < questions.length; i++) {
+                                const t = questionTimes[i];
+                                times[i] = Number.isFinite(t) ? Math.max(0, Math.min(QUESTION_SECONDS, Math.floor(t))) : QUESTION_SECONDS;
+                            }
+                            return times;
                         } catch (e) { return undefined; }
                     })()
                 };
@@ -984,14 +996,21 @@
                      console.log('Selections array:', selections);
                      
                      // Use local calculation results
-                     let totalSeconds = 0;
-                     try { totalSeconds = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS; } catch(e) {}
+                     // Prefer measured per-question total over server time
+                    let measuredTotal = 0;
+                    try {
+                        measuredTotal = Array.isArray(questionTimes)
+                          ? questionTimes.reduce((a, b) => a + (Number.isFinite(b) ? b : QUESTION_SECONDS), 0)
+                          : 0;
+                    } catch (e) { measuredTotal = 0; }
+                     const serverTotal = Number(data && data.timeTaken);
+                     const totalSeconds = measuredTotal > 0 ? measuredTotal : (Number.isFinite(serverTotal) ? serverTotal : (function(){ try { const startMs = quizStartAtMsLocal || Date.now(); return Math.max(0, Math.floor((Date.now()-startMs)/1000)); } catch(e){ return 0; } })());
                      const params = new URLSearchParams({
                          name: teamName,
                          correct: String(localScore.correctAnswers),
                          total: String(localScore.totalPoints),
                          accuracy: String(localScore.accuracy),
-                         time: String((data && Number.isFinite(Number(data.timeTaken))) ? Number(data.timeTaken) : (totalSeconds || (function(){ try { const startMs = quizStartAtMsLocal || Date.now(); return Math.max(0, Math.floor((Date.now()-startMs)/1000)); } catch(e){ return 0; } })()))
+                         time: String(totalSeconds)
                      });
                      
                      console.log('Redirecting to results with params:', params.toString());
@@ -1002,7 +1021,10 @@
                     const localScore = calculateLocalScore();
                     let localTime = 0;
                     try {
-                        localTime = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS;
+                        localTime = Array.isArray(questionTimes) && questionTimes.length
+                          ? questionTimes.reduce((a,b)=>a + (Number.isFinite(b)?b:QUESTION_SECONDS), 0)
+                          : 0;
+                        if (!localTime) { const startMs = quizStartAtMsLocal || Date.now(); localTime = Math.max(0, Math.floor((Date.now()-startMs)/1000)); }
                     } catch(e) { localTime = 0; }
                     
                     console.log('Fallback local score calculation:', localScore);

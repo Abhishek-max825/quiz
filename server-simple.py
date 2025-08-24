@@ -344,7 +344,7 @@ def submit_quiz():
     max_score = sum(q['points'] for q in quiz_data['questions'])
     percentage = round((score / max_score) * 100) if max_score > 0 else 0
     now_dt = datetime.utcnow()
-    # Prefer server-side measurement; fall back to client-provided if needed
+    # Prefer per-question timing when provided; otherwise compute elapsed as fallback
     server_time = None
     if 'start_time_dt' in globals() and start_time_dt is not None:
         try:
