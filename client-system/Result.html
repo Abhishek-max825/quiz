@@ -301,6 +301,30 @@
             };
         }
 
+        // Function to format time in a user-friendly way
+        function formatTime(seconds) {
+            if (seconds < 60) {
+                return `${seconds} seconds`;
+            } else {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')} minutes`;
+            }
+        }
+
+        // Test the time formatting function
+        console.log('Time formatting examples:');
+        console.log('25 seconds ->', formatTime(25));
+        console.log('60 seconds ->', formatTime(60));
+        console.log('90 seconds ->', formatTime(90));
+        console.log('125 seconds ->', formatTime(125));
+
+        // Add test function to browser console for debugging
+        window.testTimeFormatting = function(seconds) {
+            console.log(`${seconds} seconds -> "${formatTime(seconds)}"`);
+            return formatTime(seconds);
+        };
+
         const quizData = getQuizDataFromParams();
 
         function updateResults() {
@@ -349,7 +373,7 @@
                         const grid = document.querySelector('.stats-grid');
                         const div = document.createElement('div');
                         div.className = 'stat-box';
-                        div.innerHTML = '<div class="stat-number" id="timeTakenValue">0s</div><div class="stat-label">TIME</div>';
+                        div.innerHTML = '<div class="stat-number" id="timeTakenValue">0 seconds</div><div class="stat-label">TIME TAKEN</div>';
                         div.id = 'timeTakenBox';
                         // Span full grid width so borders align with others
                         div.style.gridColumn = '1 / -1';
@@ -361,10 +385,7 @@
                     }
                     const timeEl = document.getElementById('timeTakenValue');
                     if (timeEl) {
-                        const mins = Math.floor(quizData.timeTaken / 60);
-                        const secs = quizData.timeTaken % 60;
-                        const minsFmt = `${mins}:${secs.toString().padStart(2,'0')} min`;
-                        timeEl.textContent = minsFmt;
+                        timeEl.textContent = formatTime(quizData.timeTaken);
                     }
                 }
             } catch (e) {}
