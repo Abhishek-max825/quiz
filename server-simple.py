@@ -251,6 +251,22 @@ def get_results():
     sorted_results = sorted(quiz_results, key=lambda x: (-x['score'], x['timeTaken']))
     return jsonify({'results': sorted_results})
 
+def format_time(seconds):
+    """Format time in a user-friendly way for Excel export"""
+    if seconds < 60:
+        return f"{seconds} seconds"
+    else:
+        mins = seconds // 60
+        secs = seconds % 60
+        return f"{mins}:{secs:02d} minutes"
+
+# Test the time formatting function
+print("Server - Time formatting examples:")
+print("25 seconds ->", format_time(25))
+print("60 seconds ->", format_time(60))
+print("90 seconds ->", format_time(90))
+print("125 seconds ->", format_time(125))
+
 @app.route('/api/results/download')
 def download_results():
     try:
@@ -258,7 +274,7 @@ def download_results():
         ws = wb.active
         ws.title = "Quiz Results"
         
-        headers = ['Rank', 'Client Name', 'Score', 'Max Score', 'Percentage', 'Total Time (s)']
+        headers = ['Rank', 'Client Name', 'Score', 'Max Score', 'Percentage', 'Time Taken']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = Font(bold=True)
@@ -270,7 +286,7 @@ def download_results():
             ws.cell(row=row, column=3, value=result['score'])
             ws.cell(row=row, column=4, value=result['maxScore'])
             ws.cell(row=row, column=5, value=f"{result['percentage']}%")
-            ws.cell(row=row, column=6, value=int(result.get('timeTaken', 0)))
+            ws.cell(row=row, column=6, value=format_time(int(result.get('timeTaken', 0))))
         
         output = io.BytesIO()
         wb.save(output)

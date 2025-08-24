@@ -148,11 +148,35 @@ function App() {
   const getClientStatusColor = (status) => {
     switch (status) {
       case 'waiting': return 'default';
-      case 'ready': return 'primary';
+      case 'ready': return 'info';
       case 'quiz-active': return 'warning';
       case 'completed': return 'success';
       default: return 'default';
     }
+  };
+
+  // Function to format time in a user-friendly way
+  const formatTime = (seconds) => {
+    if (seconds < 60) {
+      return `${seconds} seconds`;
+    } else {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')} minutes`;
+    }
+  };
+
+  // Test the time formatting function
+  console.log('React Admin Panel - Time formatting examples:');
+  console.log('25 seconds ->', formatTime(25));
+  console.log('60 seconds ->', formatTime(60));
+  console.log('90 seconds ->', formatTime(90));
+  console.log('125 seconds ->', formatTime(125));
+
+  // Add test function to browser console for debugging
+  window.testReactTimeFormatting = function(seconds) {
+    console.log(`${seconds} seconds -> "${formatTime(seconds)}"`);
+    return formatTime(seconds);
   };
 
   const getClientStatusText = (status) => {
@@ -384,7 +408,7 @@ function App() {
                           </Typography>
                           
                           <Typography variant="body2" color="textSecondary">
-                            Time: {Math.round(result.timeTaken)}s
+                            Time: {formatTime(Math.round(result.timeTaken))}
                           </Typography>
                           
                           <Typography variant="caption" color="textSecondary">

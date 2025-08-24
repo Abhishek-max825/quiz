@@ -498,7 +498,7 @@
                     <div class="rank">${index + 1}</div>
                     <div class="result-info">
                         <h4>${result.clientName}</h4>
-                        <p>Score: ${result.score}/${result.maxScore} | Time: ${Math.round(result.timeTaken)}s</p>
+                        <p>Score: ${result.score}/${result.maxScore} | Time: ${formatTime(result.timeTaken)}</p>
                     </div>
                     <div class="score-badge">${result.percentage}%</div>
                 </div>
@@ -514,6 +514,30 @@
             };
             return statusMap[status] || 'Unknown';
         }
+
+        // Function to format time in a user-friendly way
+        function formatTime(seconds) {
+            if (seconds < 60) {
+                return `${seconds} seconds`;
+            } else {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')} minutes`;
+            }
+        }
+
+        // Test the time formatting function
+        console.log('Admin Panel - Time formatting examples:');
+        console.log('25 seconds ->', formatTime(25));
+        console.log('60 seconds ->', formatTime(60));
+        console.log('90 seconds ->', formatTime(90));
+        console.log('125 seconds ->', formatTime(125));
+
+        // Add test function to browser console for debugging
+        window.testAdminTimeFormatting = function(seconds) {
+            console.log(`${seconds} seconds -> "${formatTime(seconds)}"`);
+            return formatTime(seconds);
+        };
 
         function setLoading(loading) {
             const loadingElement = document.getElementById('loading');
