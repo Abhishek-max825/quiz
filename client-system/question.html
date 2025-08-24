@@ -539,13 +539,16 @@
     </main>
     
     <script>
-        let timeLeft = 5;
+        const QUESTION_SECONDS = 5;
+        let timeLeft = QUESTION_SECONDS;
         let currentQuestionIndex = 0;
         let timerInterval = null; // active countdown interval
         let advanceInProgress = false; // guard to prevent double-advance
         let quizInitialized = false; // track if quiz has been initialized
         let countdownShown = false; // track if countdown has been shown
         let countdownActive = false; // true while countdown overlay is visible
+        let quizStartAtIso = null; // server ISO start time
+        let quizStartAtMsLocal = null; // local start timestamp fallback
         let timerElement, questionText, optionTextA, optionTextB, optionTextC, optionTextD;
 
         // Questions loaded from server via /api/quiz (or from login connect response)
@@ -560,6 +563,9 @@
                     const data = await response.json();
                     const wasQuizStarted = quizStarted;
                     quizStarted = data.quizInProgress || false;
+                    if (data.startAt && !quizStartAtIso) {
+                        quizStartAtIso = data.startAt;
+                    }
                     
                     if (quizStarted && !wasQuizStarted && !countdownShown) {
                         countdownShown = true;
@@ -582,6 +588,13 @@
                         // Quiz has started (and no countdown running), show quiz interface
                         document.getElementById('waitingScreen').style.display = 'none';
                         document.getElementById('quizContainer').style.display = 'block';
+                        if (!quizStartAtMsLocal) {
+                            try {
+                                quizStartAtMsLocal = quizStartAtIso ? Date.parse(quizStartAtIso) : Date.now();
+                            } catch (e) {
+                                quizStartAtMsLocal = Date.now();
+                            }
+                        }
                         
                         // Only initialize quiz if it hasn't been started yet
                         if (!quizInitialized && questions.length > 0) {
@@ -641,6 +654,9 @@
                     quizContainer.style.display = 'block';
                     quizContainer.classList.add('fade-in');
                     setTimeout(() => quizContainer.classList.remove('fade-in'), 500);
+                    if (!quizStartAtMsLocal) {
+                        try { quizStartAtMsLocal = quizStartAtIso ? Date.parse(quizStartAtIso) : Date.now(); } catch (e) { quizStartAtMsLocal = Date.now(); }
+                    }
                     
                     if (!quizInitialized && questions.length > 0) {
                         resetQuizState();
@@ -734,7 +750,7 @@
             }
             
             // Reset timer and advanceInProgress flag
-            timeLeft = 5;
+            timeLeft = QUESTION_SECONDS;
             advanceInProgress = false;
             
             // Update timer display
@@ -750,6 +766,7 @@
         
         // Add micro-interactions to options and auto-submit
         let selections = [];
+        let questionTimes = [];
 
         document.querySelectorAll('.option-label').forEach(label => {
             label.addEventListener('click', function() {
@@ -817,6 +834,8 @@
                         // Don't set to null, keep it undefined to indicate no answer
                         console.log('Question', currentQuestionIndex + 1, 'was unanswered (time ran out)');
                     }
+                    // Time ran out → fixed per-question duration
+                    try { questionTimes[currentQuestionIndex] = QUESTION_SECONDS; } catch (e) {}
                     
                     console.log('Calling moveToNextQuestion from timer');
                     // Move to next question immediately
@@ -855,6 +874,10 @@
 
             // Record selection for this question as index (number string)
             selections[currentQuestionIndex] = Number(selectedOption.value);
+            // Record fixed time per question (always 5 seconds)
+            try {
+                questionTimes[currentQuestionIndex] = QUESTION_SECONDS;
+            } catch (e) {}
 
             // Stop countdown to prevent double-advance
             if (timerInterval) {
@@ -912,7 +935,19 @@
                 
                 const payload = {
                     clientId,
-                    answers: selections
+                    answers: selections,
+                    timeTaken: (function(){
+                        try {
+                            const startMs = quizStartAtMsLocal || Date.now();
+                            return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+                        } catch (e) { return undefined; }
+                    })(),
+                    questionTimes: (function(){
+                        try {
+                            // Always 5 seconds per question
+                            return Array.from({ length: questions.length }, () => QUESTION_SECONDS);
+                        } catch (e) { return undefined; }
+                    })()
                 };
                 
                 console.log('Sending payload to server:', payload);
@@ -949,11 +984,14 @@
                      console.log('Selections array:', selections);
                      
                      // Use local calculation results
+                     let totalSeconds = 0;
+                     try { totalSeconds = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS; } catch(e) {}
                      const params = new URLSearchParams({
                          name: teamName,
                          correct: String(localScore.correctAnswers),
                          total: String(localScore.totalPoints),
-                         accuracy: String(localScore.accuracy)
+                         accuracy: String(localScore.accuracy),
+                         time: String((data && Number.isFinite(Number(data.timeTaken))) ? Number(data.timeTaken) : (totalSeconds || (function(){ try { const startMs = quizStartAtMsLocal || Date.now(); return Math.max(0, Math.floor((Date.now()-startMs)/1000)); } catch(e){ return 0; } })()))
                      });
                      
                      console.log('Redirecting to results with params:', params.toString());
@@ -962,6 +1000,10 @@
                 .catch(() => {
                     // Fallback: compute locally if server submit fails
                     const localScore = calculateLocalScore();
+                    let localTime = 0;
+                    try {
+                        localTime = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS;
+                    } catch(e) { localTime = 0; }
                     
                     console.log('Fallback local score calculation:', localScore);
                     
@@ -969,7 +1011,8 @@
                         name: teamName,
                         correct: String(localScore.correctAnswers),
                         total: String(localScore.totalPoints),
-                        accuracy: String(localScore.accuracy)
+                        accuracy: String(localScore.accuracy),
+                        time: String(localTime)
                     });
                     window.location.href = `Result.html?${params.toString()}`;
                 });

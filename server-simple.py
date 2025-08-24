@@ -26,6 +26,7 @@ connected_clients = {}
 quiz_results = []
 quiz_in_progress = False
 start_timestamp = None
+start_time_dt = None
 current_question_index = 0
 
 
@@ -155,14 +156,15 @@ def get_status():
 
 @app.route('/api/quiz/start', methods=['POST'])
 def start_quiz():
-    global quiz_in_progress, start_timestamp, current_question_index
+    global quiz_in_progress, start_timestamp, start_time_dt, current_question_index
     if not quiz_data or not quiz_data.get('questions'):
         return jsonify({'error': 'No quiz loaded. Upload a quiz JSON first.'}), 400
     if quiz_in_progress:
         return jsonify({'error': 'Quiz already in progress'}), 400
     
     quiz_in_progress = True
-    start_timestamp = datetime.utcnow().isoformat() + 'Z'
+    start_time_dt = datetime.utcnow()
+    start_timestamp = start_time_dt.isoformat() + 'Z'
     current_question_index = 0
     for client in connected_clients.values():
         client['status'] = 'quiz-active'
@@ -185,9 +187,10 @@ def next_question():
 
 @app.route('/api/quiz/reset', methods=['POST'])
 def reset_quiz():
-    global quiz_in_progress, quiz_results, start_timestamp, connected_clients, current_question_index
+    global quiz_in_progress, quiz_results, start_timestamp, start_time_dt, connected_clients, current_question_index
     quiz_in_progress = False
     start_timestamp = None
+    start_time_dt = None
     quiz_results.clear()
     # Clear all connected clients so counts/lists reset fully
     connected_clients.clear()
@@ -255,7 +258,7 @@ def download_results():
         ws = wb.active
         ws.title = "Quiz Results"
         
-        headers = ['Rank', 'Client Name', 'Score', 'Max Score', 'Percentage']
+        headers = ['Rank', 'Client Name', 'Score', 'Max Score', 'Percentage', 'Total Time (s)']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = Font(bold=True)
@@ -267,6 +270,7 @@ def download_results():
             ws.cell(row=row, column=3, value=result['score'])
             ws.cell(row=row, column=4, value=result['maxScore'])
             ws.cell(row=row, column=5, value=f"{result['percentage']}%")
+            ws.cell(row=row, column=6, value=int(result.get('timeTaken', 0)))
         
         output = io.BytesIO()
         wb.save(output)
@@ -339,6 +343,35 @@ def submit_quiz():
     
     max_score = sum(q['points'] for q in quiz_data['questions'])
     percentage = round((score / max_score) * 100) if max_score > 0 else 0
+    now_dt = datetime.utcnow()
+    # Prefer server-side measurement; fall back to client-provided if needed
+    server_time = None
+    if 'start_time_dt' in globals() and start_time_dt is not None:
+        try:
+            server_time = max(0, int((now_dt - start_time_dt).total_seconds()))
+        except Exception:
+            server_time = None
+    client_time = data.get('timeTaken')
+    if isinstance(client_time, (int, float)):
+        try:
+            client_time = max(0, int(client_time))
+        except Exception:
+            client_time = None
+    else:
+        client_time = None
+    # Per-question times (optional)
+    question_times = data.get('questionTimes')
+    total_from_items = None
+    if isinstance(question_times, list):
+        try:
+            total_from_items = sum(
+                max(0, int(item)) for item in question_times if isinstance(item, (int, float))
+            )
+        except Exception:
+            total_from_items = None
+    # Choose best available total time: prefer per-question sum if provided
+    time_taken = total_from_items if total_from_items is not None else (server_time if server_time is not None else (client_time or 0))
+    completed_at = now_dt.isoformat() + 'Z'
     
     quiz_result = {
         'clientId': client_id,
@@ -346,7 +379,9 @@ def submit_quiz():
         'score': score,
         'maxScore': max_score,
         'percentage': percentage,
-        'timeTaken': 0
+        'timeTaken': time_taken,
+        'completedAt': completed_at,
+        'questionTimes': question_times if isinstance(question_times, list) else None
     }
     
     quiz_results.append(quiz_result)
@@ -355,7 +390,9 @@ def submit_quiz():
         'message': 'Quiz submitted successfully',
         'score': score,
         'maxScore': max_score,
-        'percentage': percentage
+        'percentage': percentage,
+        'timeTaken': time_taken,
+        'completedAt': completed_at
     })
 
 if __name__ == '__main__':

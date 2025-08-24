@@ -266,6 +266,7 @@
             const correct = Number(p.get('correct'));
             const total = Number(p.get('total'));
             const providedAccuracy = p.get('accuracy') ?? p.get('score');
+            const timeTaken = Number(p.get('time'));
             let accuracy = providedAccuracy != null ? Number(providedAccuracy) : NaN;
 
             // If no correct answers provided, default to 0 (not 17!)
@@ -295,7 +296,8 @@
                 userId,
                 correctAnswers: resolvedCorrect,
                 totalQuestions: resolvedTotal,
-                accuracy
+                accuracy,
+                timeTaken: isFinite(timeTaken) && timeTaken >= 0 ? Math.floor(timeTaken) : null
             };
         }
 
@@ -339,6 +341,33 @@
             document.getElementById('incorrectCount').textContent = incorrectQuestions;
             document.getElementById('totalCount').textContent = totalQuestions;
             document.getElementById('accuracyPercent').textContent = `${quizData.accuracy}%`;
+            // Add/replace a time taken stat box if present
+            try {
+                if (quizData.timeTaken !== null) {
+                    let timeBox = document.getElementById('timeTakenBox');
+                    if (!timeBox) {
+                        const grid = document.querySelector('.stats-grid');
+                        const div = document.createElement('div');
+                        div.className = 'stat-box';
+                        div.innerHTML = '<div class="stat-number" id="timeTakenValue">0s</div><div class="stat-label">TIME</div>';
+                        div.id = 'timeTakenBox';
+                        // Span full grid width so borders align with others
+                        div.style.gridColumn = '1 / -1';
+                        grid.appendChild(div);
+                        timeBox = div;
+                    } else {
+                        // Ensure full-width span if it already exists
+                        timeBox.style.gridColumn = '1 / -1';
+                    }
+                    const timeEl = document.getElementById('timeTakenValue');
+                    if (timeEl) {
+                        const mins = Math.floor(quizData.timeTaken / 60);
+                        const secs = quizData.timeTaken % 60;
+                        const minsFmt = `${mins}:${secs.toString().padStart(2,'0')} min`;
+                        timeEl.textContent = minsFmt;
+                    }
+                }
+            } catch (e) {}
             
             // Log the final values for debugging
             console.log('Final Quiz Data:', {
@@ -347,7 +376,8 @@
                 accuracy: quizData.accuracy,
                 correctQuestions,
                 incorrectQuestions,
-                totalQuestions
+                totalQuestions,
+                timeTaken: quizData.timeTaken
             });
         }
 
