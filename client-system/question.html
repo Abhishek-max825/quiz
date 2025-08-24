@@ -555,6 +555,11 @@
         let questions = [];
         let quizStarted = false;
 
+        // Add these variables for accurate time tracking
+        let questionStartTime = null; // When current question started
+        let totalQuestionTime = 0; // Total time spent on questions only
+        let questionTimes = []; // Array to store time spent on each question
+
         // Function to check if quiz has started
         async function checkQuizStatus() {
             try {
@@ -760,13 +765,15 @@
                 console.log('Timer reset to:', timeLeft, 'for question:', currentQuestionIndex + 1);
             }
             
+            // Start timing for this question
+            questionStartTime = Date.now();
+            
             // Start timer for this question
             startTimer();
         }
         
         // Add micro-interactions to options and auto-submit
         let selections = [];
-        let questionTimes = [];
 
         document.querySelectorAll('.option-label').forEach(label => {
             label.addEventListener('click', function() {
@@ -834,8 +841,18 @@
                         // Don't set to null, keep it undefined to indicate no answer
                         console.log('Question', currentQuestionIndex + 1, 'was unanswered (time ran out)');
                     }
-                    // Time ran out → fixed per-question duration
-                    try { questionTimes[currentQuestionIndex] = QUESTION_SECONDS; } catch (e) {}
+                    
+                    // Record actual time spent on this question (not fixed 5 seconds)
+                    if (questionStartTime) {
+                        const questionTime = Math.floor((Date.now() - questionStartTime) / 1000);
+                        totalQuestionTime += questionTime;
+                        try { 
+                            questionTimes[currentQuestionIndex] = questionTime; 
+                        } catch (e) {
+                            questionTimes[currentQuestionIndex] = questionTime;
+                        }
+                        console.log(`Question ${currentQuestionIndex + 1} took ${questionTime} seconds (time ran out). Total question time: ${totalQuestionTime}`);
+                    }
                     
                     console.log('Calling moveToNextQuestion from timer');
                     // Move to next question immediately
@@ -874,10 +891,18 @@
 
             // Record selection for this question as index (number string)
             selections[currentQuestionIndex] = Number(selectedOption.value);
-            // Record fixed time per question (always 5 seconds)
-            try {
-                questionTimes[currentQuestionIndex] = QUESTION_SECONDS;
-            } catch (e) {}
+            
+            // Calculate and record actual time spent on this question
+            if (questionStartTime) {
+                const questionTime = Math.floor((Date.now() - questionStartTime) / 1000);
+                totalQuestionTime += questionTime;
+                try {
+                    questionTimes[currentQuestionIndex] = questionTime;
+                } catch (e) {
+                    questionTimes[currentQuestionIndex] = questionTime;
+                }
+                console.log(`Question ${currentQuestionIndex + 1} took ${questionTime} seconds. Total question time: ${totalQuestionTime}`);
+            }
 
             // Stop countdown to prevent double-advance
             if (timerInterval) {
@@ -936,17 +961,15 @@
                 const payload = {
                     clientId,
                     answers: selections,
-                    timeTaken: (function(){
-                        try {
-                            const startMs = quizStartAtMsLocal || Date.now();
-                            return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-                        } catch (e) { return undefined; }
-                    })(),
+                    timeTaken: totalQuestionTime, // Use only question-solving time
                     questionTimes: (function(){
                         try {
-                            // Always 5 seconds per question
+                            // Use actual time spent on each question, not fixed 5 seconds
+                            return questionTimes.map(time => time || 0);
+                        } catch (e) { 
+                            // Fallback to fixed time if questionTimes array is corrupted
                             return Array.from({ length: questions.length }, () => QUESTION_SECONDS);
-                        } catch (e) { return undefined; }
+                        }
                     })()
                 };
                 
@@ -1000,10 +1023,7 @@
                 .catch(() => {
                     // Fallback: compute locally if server submit fails
                     const localScore = calculateLocalScore();
-                    let localTime = 0;
-                    try {
-                        localTime = (Array.isArray(questions) ? questions.length : 0) * QUESTION_SECONDS;
-                    } catch(e) { localTime = 0; }
+                    let localTime = totalQuestionTime; // Use actual question-solving time
                     
                     console.log('Fallback local score calculation:', localScore);
                     
@@ -1109,6 +1129,11 @@
             quizInitialized = false;
             countdownShown = false; // Reset countdown flag
             
+            // Reset time tracking
+            questionStartTime = null;
+            totalQuestionTime = 0;
+            questionTimes = [];
+            
             // Initialize selections array with undefined for all questions
             if (questions.length > 0) {
                 for (let i = 0; i < questions.length; i++) {
@@ -1174,6 +1199,27 @@
             window.showSelections = function() {
                 console.log('Current selections:', selections);
                 alert(`Selections: ${JSON.stringify(selections)}`);
+            };
+            
+            // Debug function to show time tracking status
+            window.showTimeStatus = function() {
+                console.log('Time tracking status:', {
+                    questionStartTime: questionStartTime,
+                    totalQuestionTime: totalQuestionTime,
+                    questionTimes: questionTimes,
+                    currentQuestionIndex: currentQuestionIndex
+                });
+                alert(`Time Status:\nQuestion Start: ${questionStartTime ? new Date(questionStartTime).toLocaleTimeString() : 'None'}\nTotal Question Time: ${totalQuestionTime}s\nQuestion Times: ${JSON.stringify(questionTimes)}\nCurrent Question: ${currentQuestionIndex + 1}`);
+            };
+            
+            // Test function to simulate question timing
+            window.testQuestionTiming = function() {
+                if (questionStartTime) {
+                    const elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
+                    alert(`Current question has been active for ${elapsed} seconds`);
+                } else {
+                    alert('No question is currently active');
+                }
             };
         };
     </script>
