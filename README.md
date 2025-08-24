@@ -20,19 +20,25 @@ A modern, real-time quiz administration system built with Python Flask and vanil
 ## 🏗️ Architecture
 
 ```
-Quiz Admin Panel/
-├── server-simple.py          # Main Flask server
-├── requirements-simple.txt   # Python dependencies
-├── start.py                 # Startup script
-├── admin-panel/             # Admin interface
-│   ├── index.html          # Admin dashboard
-│   └── styles.css          # Admin styling
-├── client-system/           # Client interface
-│   ├── index.html          # Client quiz interface
-│   ├── client.js           # Client logic
-│   ├── quiz.js             # Quiz management
-│   └── styles.css          # Client styling
-└── README.md               # This file
+quiz/
+├── server-simple.py           # Flask server (simple version)
+├── requirements-simple.txt    # Python dependencies
+├── start.py                   # Startup script
+├── server.sh                  # Shell script to run server
+├── sample-quiz.json           # Sample questions
+├── LICENSE                    # License information
+├── README.md                  # Project documentation
+├── admin-panel/               # Admin interface
+│   ├── index.html             # Admin dashboard
+│   └── src/
+│       └── App.js             # Admin app script
+├── client-system/             # Client interface
+│   ├── login.html             # Client login page
+│   ├── question.html          # Quiz page
+│   └── Result.html            # Results page
+├── logs/                      # Runtime logs
+│   └── server.log
+└── uploads/                   # File uploads and exports
 ```
 
 ## 🚀 Quick Start
