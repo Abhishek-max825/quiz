@@ -45,6 +45,12 @@
             font-weight: 300;
         }
 
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
         .status-chip {
             background: #0d419d;
             color: #ffffff;
@@ -52,6 +58,23 @@
             border-radius: 25px;
             font-weight: 500;
             border: 1px solid #1f6feb;
+        }
+
+        .logout-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #b91c1c;
+            transform: translateY(-1px);
         }
 
         .main-content {
@@ -97,6 +120,95 @@
         .btn:disabled {
             background: #2f3441;
             cursor: not-allowed;
+        }
+
+        /* Authentication Styles */
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0b0f18 0%, #0a0e1a 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .auth-container {
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            border: 1px solid #1f2937;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .auth-container h1 {
+            color: #58a6ff;
+            margin-bottom: 30px;
+            font-size: 2rem;
+            font-weight: 300;
+        }
+
+        .auth-container p {
+            color: #9aa4b2;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #1f2937;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e6e6e6;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            transition: border-color 0.3s ease;
+        }
+
+        .auth-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        .auth-btn {
+            background: #1f6feb;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .auth-btn:hover {
+            background: #2d7ff5;
+            transform: translateY(-2px);
+        }
+
+        .auth-error {
+            color: #f85149;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .admin-content {
+            display: none;
+        }
+
+        .admin-content.authenticated {
+            display: block;
         }
 
         .btn.success { background: #1f6feb; }
@@ -216,73 +328,91 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Quiz Admin Panel</h1>
-            <div class="status-chip" id="connectionStatus">
-                <span id="clientCount">0</span> Clients Connected
-            </div>
+    <!-- Authentication Overlay -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-container">
+            <h1>🔐 Admin Access</h1>
+            <p>Please enter the admin password to access the quiz control panel.</p>
+            <input type="password" class="auth-input" id="passwordInput" placeholder="Enter password" autocomplete="off">
+            <button class="auth-btn" onclick="authenticate()">Access Admin Panel</button>
+            <div class="auth-error" id="authError">Incorrect password. Please try again.</div>
         </div>
+    </div>
 
-        <div id="alertContainer"></div>
-
-        <div class="main-content">
-            <div class="control-panel">
-                <h2>🎮 Quiz Control</h2>
-                <button class="btn success" id="startBtn" onclick="startQuiz()" disabled>
-                    ▶️ Start Quiz
-                </button>
-                <button class="btn danger" id="resetBtn" onclick="resetQuiz()" disabled>
-                    ⏹️ Reset Quiz
-                </button>
-
-                <button class="btn" id="downloadBtn" onclick="downloadResults()" disabled>
-                    📥 Download Results
-                </button>
-                <button class="btn" onclick="refreshData()">
-                    🔄 Refresh Data
-                </button>
-                
-                <div class="loading" id="loading">
-                    <div class="spinner"></div>
-                    <p>Processing...</p>
+    <!-- Admin Panel Content (Hidden until authenticated) -->
+    <div class="admin-content" id="adminContent">
+        <div class="container">
+            <div class="header">
+                <h1>📊 Quiz Admin Panel</h1>
+                <div class="header-controls">
+                    <div class="status-chip" id="connectionStatus">
+                        <span id="clientCount">0</span> Clients Connected
+                    </div>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
             </div>
-            <div class="status-panel">
-                <h2>📈 System Status</h2>
-                <div class="status-grid">
-                    <div class="status-card">
-                        <h3>Total Clients</h3>
-                        <div class="value" id="totalClients">0</div>
-                    </div>
-                    <div class="status-card">
-                        <h3>Quiz Status</h3>
-                        <div class="value" id="quizStatus">Inactive</div>
-                    </div>
-                    <div class="status-card">
-                        <h3>Completed</h3>
-                        <div class="value" id="completedClients">0</div>
-                    </div>
-                    <div class="status-card">
-                        <h3>Pending</h3>
-                        <div class="value" id="pendingClients">0</div>
-                    </div>
-                </div>
-                <div class="clients-list">
-                    <h3>👥 Connected Clients</h3>
-                    <div id="clientsList">
-                        <p style="text-align: center; color: #9aa4b2; padding: 20px;">
-                            No clients connected yet
-                        </p>
+
+            <div id="alertContainer"></div>
+
+            <div class="main-content">
+                <div class="control-panel">
+                    <h2>🎮 Quiz Control</h2>
+                    <button class="btn success" id="startBtn" onclick="startQuiz()" disabled>
+                        ▶️ Start Quiz
+                    </button>
+                    <button class="btn danger" id="resetBtn" onclick="resetQuiz()" disabled>
+                        ⏹️ Reset Quiz
+                    </button>
+
+                    <button class="btn" id="downloadBtn" onclick="downloadResults()" disabled>
+                        📥 Download Results
+                    </button>
+                    <button class="btn" onclick="refreshData()">
+                        🔄 Refresh Data
+                    </button>
+                    
+                    <div class="loading" id="loading">
+                        <div class="spinner"></div>
+                        <p>Processing...</p>
                     </div>
                 </div>
-                <div class="results-section" id="resultsSection" style="display: none;">
-                    <h3>🏆 Quiz Results</h3>
-                    <div id="resultsList"></div>
+                <div class="status-panel">
+                    <h2>📈 System Status</h2>
+                    <div class="status-grid">
+                        <div class="status-card">
+                            <h3>Total Clients</h3>
+                            <div class="value" id="totalClients">0</div>
+                        </div>
+                        <div class="status-card">
+                            <h3>Quiz Status</h3>
+                            <div class="value" id="quizStatus">Inactive</div>
+                        </div>
+                        <div class="status-card">
+                            <h3>Completed</h3>
+                            <div class="value" id="completedClients">0</div>
+                        </div>
+                        <div class="status-card">
+                            <h3>Pending</h3>
+                            <div class="value" id="pendingClients">0</div>
+                        </div>
+                    </div>
+                    <div class="clients-list">
+                        <h3>👥 Connected Clients</h3>
+                        <div id="clientsList">
+                            <p style="text-align: center; color: #9aa4b2; padding: 20px;">
+                                No clients connected yet
+                            </p>
+                        </div>
+                    </div>
+                    <div class="results-section" id="resultsSection" style="display: none;">
+                        <h3>🏆 Quiz Results</h3>
+                        <div id="resultsList"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+    <!-- End of Admin Panel Content -->
 
     <script>
         // Global variables
@@ -566,6 +696,109 @@
                 alert.remove();
             }, 3000);
         }
+
+        // Authentication Functions
+        function authenticate() {
+            const password = document.getElementById('passwordInput').value;
+            const correctPassword = 'admin1234@';
+            
+            if (password === correctPassword) {
+                // Hide auth overlay and show admin panel
+                document.getElementById('authOverlay').style.display = 'none';
+                document.getElementById('adminContent').classList.add('authenticated');
+                
+                // Store authentication in session storage with timestamp
+                const authData = {
+                    authenticated: true,
+                    timestamp: Date.now(),
+                    expires: Date.now() + (8 * 60 * 60 * 1000) // 8 hours
+                };
+                sessionStorage.setItem('adminAuthData', JSON.stringify(authData));
+                
+                // Initialize admin panel
+                refreshData();
+                showAlert('Welcome! Admin panel unlocked.', 'success');
+                
+                // Start session monitoring
+                startSessionMonitoring();
+            } else {
+                // Show error message
+                document.getElementById('authError').style.display = 'block';
+                document.getElementById('passwordInput').value = '';
+                document.getElementById('passwordInput').focus();
+                
+                // Hide error after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('authError').style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // Check if already authenticated
+        function checkAuthentication() {
+            const authData = sessionStorage.getItem('adminAuthData');
+            if (authData) {
+                try {
+                    const auth = JSON.parse(authData);
+                    const now = Date.now();
+                    
+                    if (auth.authenticated && now < auth.expires) {
+                        document.getElementById('authOverlay').style.display = 'none';
+                        document.getElementById('adminContent').classList.add('authenticated');
+                        refreshData();
+                        startSessionMonitoring();
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error parsing auth data:', e);
+                }
+            }
+            
+            // If not authenticated or expired, show login
+            logout();
+        }
+
+        // Start session monitoring
+        function startSessionMonitoring() {
+            // Check session every minute
+            setInterval(() => {
+                const authData = sessionStorage.getItem('adminAuthData');
+                if (authData) {
+                    try {
+                        const auth = JSON.parse(authData);
+                        const now = Date.now();
+                        
+                        if (now >= auth.expires) {
+                            showAlert('Session expired. Please login again.', 'warning');
+                            logout();
+                        }
+                    } catch (e) {
+                        console.error('Error checking session:', e);
+                        logout();
+                    }
+                }
+            }, 60000); // Check every minute
+        }
+
+        function logout() {
+            sessionStorage.removeItem('adminAuthData');
+            document.getElementById('authOverlay').style.display = 'flex'; // Show auth overlay
+            document.getElementById('adminContent').classList.remove('authenticated');
+            showAlert('Logged out successfully!', 'success');
+            // Optionally, redirect to login page or clear other admin data
+        }
+
+        // Handle Enter key in password input
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('passwordInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    authenticate();
+                }
+            });
+            
+            // Check authentication status
+            checkAuthentication();
+        });
     </script>
 </body>
 </html>
