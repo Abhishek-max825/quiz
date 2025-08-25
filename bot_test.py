@@ -3,34 +3,73 @@ import threading
 import random
 import time
 
-# Use your playit.gg URL (replace endpoints accordingly)
 BASE_URL = "http://numbers-colony.gl.at.ply.gg:25300"
-QUIZ_PAGE = f"{BASE_URL}/client"       # frontend
-SUBMIT_URL = f"{BASE_URL}/submit"      # adjust if your backend endpoint is different
+
+JOIN_URL = f"{BASE_URL}/api/client/connect"
+STATUS_URL = f"{BASE_URL}/api/status"
+SUBMIT_URL = f"{BASE_URL}/api/client/submit"
 
 def simulate_user(user_id):
     try:
-        print(f"User {user_id} joining the quiz...")
-
-        # Each bot uses its own session (unique cookies)
         session = requests.Session()
-        session.get(QUIZ_PAGE)
+        username = f"Bot{user_id}"
 
-        # Example: 5 questions with random answers
-        for q in range(1, 5 + 1):
-            answer = random.choice(["A", "B", "C", "D"])
-            payload = {"question_id": q, "answer": answer}
-            res = session.post(SUBMIT_URL, data=payload)
+        # Step 1: Join quiz
+        res = session.post(JOIN_URL, json={"name": username})
+        if res.status_code != 200:
+            print(f"{username} failed to join → {res.text}")
+            return
+        client_id = res.json().get("clientId")
+        print(f"{username} joined with ID {client_id}")
 
-            print(f"User {user_id} answered Q{q} with {answer} → {res.status_code}")
-            time.sleep(random.uniform(0.5, 2))  # wait between answers
+        # Step 2: Wait until quiz starts
+        num_questions = 0
+        while True:
+            status = session.get(STATUS_URL).json()
+            if status.get("quizInProgress"):
+                print(f"{username} → quiz started!")
+                num_questions = status.get("numQuestions", 5)
+                break
+            time.sleep(2)
 
-        print(f"User {user_id} finished the quiz!")
+        # Step 3: Answer each question as they come
+        answers = [-1] * num_questions
+        question_times = [0] * num_questions
+        last_index = -1
+
+        while True:
+            status = session.get(STATUS_URL).json()
+            if not status.get("quizInProgress"):
+                print(f"{username} detected quiz ended.")
+                break
+
+            current_index = status.get("currentQuestionIndex", -1)
+
+            if current_index != last_index and 0 <= current_index < num_questions:
+                # New question available → answer it
+                chosen = random.randint(0, 3)
+                answers[current_index] = chosen
+                question_times[current_index] = random.randint(1, 4)
+                print(f"{username} answered Q{current_index+1} with option {chosen}")
+                last_index = current_index
+
+            time.sleep(1)
+
+        # Step 4: Submit all answers
+        payload = {
+            "clientId": client_id,
+            "answers": answers,
+            "timeTaken": sum(question_times),
+            "questionTimes": question_times
+        }
+
+        res = session.post(SUBMIT_URL, json=payload)
+        print(f"{username} final submit → {res.status_code}, {res.json()}")
 
     except Exception as e:
-        print(f"User {user_id} error: {e}")
+        print(f"Error for {username}: {e}")
 
-# Run 25 bots
+# Launch 25 bots
 threads = []
 for i in range(25):
     t = threading.Thread(target=simulate_user, args=(i,))

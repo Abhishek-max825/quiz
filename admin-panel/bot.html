@@ -26,7 +26,7 @@
     .card { background: var(--card); border: 1px solid #1f2937; border-radius: 12px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-    input[type="number"], select { width: 100%; background: #0b1324; color: var(--text); border: 1px solid #1f2937; border-radius: 8px; padding: 10px 12px; outline: none; }
+    input[type="number"], select, input[type="text"] { width: 100%; background: #0b1324; color: var(--text); border: 1px solid #1f2937; border-radius: 8px; padding: 10px 12px; outline: none; }
     input[type="checkbox"] { transform: translateY(2px); }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
     button { cursor: pointer; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; color: white; background: var(--accent); }
@@ -67,7 +67,8 @@
         </div>
         <div>
           <label for="endpoint">Server base URL</label>
-          <input id="endpoint" type="text" value="" placeholder="Default: same origin" />
+          <!-- Pre-filled with your playit.gg server -->
+          <input id="endpoint" type="text" value="http://numbers-colony.gl.at.ply.gg:25300" />
         </div>
       </div>
 
@@ -79,18 +80,16 @@
       </div>
 
       <div class="stats" id="stats">Ready.</div>
+      <div class="stats" id="progress">Bots not started yet.</div>
       <div class="log" id="log"></div>
     </div>
   </div>
 
+  <!-- Bot script -->
   <script src="/admin-panel/src/bot.js" defer></script>
   <script>
-    // Pass initial config if needed in future
+    // Prevent bfcache back issues
+    window.onpageshow = function(e){ if(e.persisted) location.reload(); };
   </script>
 </body>
-<script>
-// Prevent bfcache back issues
-window.onpageshow = function(e){ if(e.persisted) location.reload(); };
-</script>
 </html>
-
