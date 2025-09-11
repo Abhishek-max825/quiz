@@ -236,6 +236,17 @@
             font-size: 1.5rem;
         }
 
+        .status-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-title-icon {
+            width: 1.6em;
+            height: 1.6em;
+            opacity: 0.95;
+        }
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -381,7 +392,7 @@
                     </div>
                 </div>
                 <div class="status-panel">
-                    <h2>📈 System Status</h2>
+                    <h2 class="status-title"><img src="/assets/system.png" alt="System" class="status-title-icon"> System Status</h2>
                     <div class="status-grid">
                         <div class="status-card">
                             <h3>Total Clients</h3>
