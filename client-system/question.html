@@ -72,6 +72,7 @@
             position: sticky;
             top: 0;
             background: rgba(26, 26, 26, 0.95);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border-bottom: 1px solid rgba(0, 212, 255, 0.2);
             padding: 1rem 2rem;
@@ -412,6 +413,7 @@
             visibility: hidden;
             transition: all 0.3s ease;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
         }
 
@@ -555,6 +557,7 @@
         // Questions loaded from server via /api/quiz (or from login connect response)
         let questions = [];
         let quizStarted = false;
+        let redirectedAfterReset = false; // ensure single redirect on reset
 
         // Add these variables for accurate time tracking
         let questionStartTime = null; // When current question started
@@ -569,6 +572,14 @@
                     const data = await response.json();
                     const wasQuizStarted = quizStarted;
                     quizStarted = data.quizInProgress || false;
+                    
+                    // If the quiz was running and now is not, admin reset occurred
+                    if (!quizStarted && wasQuizStarted && !redirectedAfterReset) {
+                        try { localStorage.removeItem('clientId'); localStorage.removeItem('quizData'); } catch (e) {}
+                        redirectedAfterReset = true;
+                        window.location.href = '/client-system/login.html';
+                        return;
+                    }
                     if (data.startAt && !quizStartAtIso) {
                         quizStartAtIso = data.startAt;
                     }

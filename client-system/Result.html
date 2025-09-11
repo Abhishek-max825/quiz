@@ -417,6 +417,25 @@
         
         
 
+        // Poll server for reset; if reset, send user to landing page
+        (function startResetWatcher(){
+            async function checkReset(){
+                try{
+                    const res = await fetch('/api/status');
+                    if(res.ok){
+                        const data = await res.json();
+                        if(!data.quizInProgress){
+                            try { localStorage.removeItem('clientId'); localStorage.removeItem('quizData'); } catch (e) {}
+                            window.location.href = '/client-system/login.html';
+                            return;
+                        }
+                    }
+                }catch(e){}
+                setTimeout(checkReset, 3000);
+            }
+            checkReset();
+        })();
+
         // Add some animation delay for the progress circle
         setTimeout(() => {
             document.getElementById('progressFill').style.transition = 'stroke-dashoffset 1.5s ease';
