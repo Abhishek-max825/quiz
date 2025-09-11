@@ -34,6 +34,11 @@
             min-height: 100vh;
             position: relative;
             overflow-x: hidden;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         /* Tech-inspired background pattern */
@@ -541,6 +546,23 @@
     </main>
     
     <script>
+        // Disable text selection, copying and context menu
+        (function disableCopying(){
+            const block = (e) => { e.preventDefault(); return false; };
+            document.addEventListener('copy', block);
+            document.addEventListener('cut', block);
+            document.addEventListener('paste', block);
+            document.addEventListener('contextmenu', block);
+            document.addEventListener('dragstart', block);
+            document.addEventListener('selectstart', block);
+            document.addEventListener('keydown', (e) => {
+                const key = (e.key || '').toLowerCase();
+                if ((e.ctrlKey || e.metaKey) && ['c','x','a','s','p'].includes(key)) {
+                    e.preventDefault();
+                }
+            });
+        })();
+
         const QUESTION_SECONDS = 8;
         let timeLeft = QUESTION_SECONDS;
         let currentQuestionIndex = 0;
