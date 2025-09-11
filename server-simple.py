@@ -124,6 +124,12 @@ def client_static(filename):
     """Serve client system static files"""
     return send_from_directory('client-system', filename)
 
+# Serve assets (images, etc.)
+@app.route('/assets/<path:filename>')
+def assets_static(filename):
+    """Serve shared assets like images"""
+    return send_from_directory('assets', filename)
+
 # Additional routes for client files
 @app.route('/styles.css')
 def client_styles():
