@@ -198,6 +198,6 @@ pip install -r requirements-simple.txt --force-reinstall
 
 ---
 
-**Made with cursor Ai by BCA III 'A' & 'B' **
+**Made with cursor Ai by Abhishek-max825 Sayeem3051 and AKSHAY355-a **
 
 *Star this repository if you find it helpful! ⭐*
