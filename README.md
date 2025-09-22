@@ -135,4 +135,6 @@ MIT – see [LICENSE](LICENSE).
 
 ## Credits
 
-Built with Flask and modern browser APIs. UI assets in `assets/`.
+- Contributors: Abhishek-max825, Sayeem3051, AKSHAY355-a
+- Tech: Flask, OpenPyXL
+- UI: Material Icons, Google Fonts
